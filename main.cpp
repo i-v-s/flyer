@@ -11,16 +11,42 @@
 #include <svo_msgs/Info.h>
 #include <sensor_fusion_comm/InitScale.h>
 
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+
 //#include <mavros_msgs/OverrideRCIn.h>
 
 int svoReset = 0;
 int svoStart = 0;
 int svoStage = 0;
 bool svoReady = false;
+double zref = 0, zpos = 0;
 ros::Publisher svoKey;
 
 ros::ServiceClient msf_client;// = nh.serviceClient<sensor_fusion_comm::InitScale>("/msf_pose_sensor/pose_sensor/initialize_msf_scale");
 
+void msfPoseCB(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose)
+{
+    static int p = 0;
+    static double zsum = 0;
+    if(svoStage == 3)
+    {
+        p++;
+        double z = pose->pose.pose.position.z;
+        if(p < 20)
+            zsum += z;
+        else if(p == 20) 
+        {
+            zref = (zsum / 20) + 0.1;
+            ROS_INFO("Zref = %f", zref);
+        }
+        zpos = z;
+        if(!(p & 15))
+        {
+            ROS_INFO("z = %f", z);
+        }
+    }
+
+}
 
 void svoInfoCB(const svo_msgs::Info::ConstPtr& info)
 {
@@ -112,6 +138,8 @@ int main(int argc, char **argv)
     ros::Subscriber svoInfo = nh.subscribe("/svo/info", 100, svoInfoCB);
     svoKey = nh.advertise<std_msgs::String>("/svo/remote_key", 10);
 
+    ros::Subscriber msfPose = nh.subscribe("/msf_core/pose", 10, msfPoseCB);
+
     ros::ServiceClient mavros_arming_client = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
     mavros_msgs::CommandBool arming;
     arming.request.value = true;
@@ -133,7 +161,7 @@ int main(int argc, char **argv)
     bool arm_en = false;
     ros::Rate loop_rate(100.0);
 
-    int count = 1000;
+    int count = 1500;
     for(int t = 100; t > 0 && ros::ok(); t--)
     {
         mavros_throttle.publish(th);
@@ -187,7 +215,16 @@ int main(int argc, char **argv)
         {                
             count--;
             if(th < 0.5 && svoStage != 3) th += 0.0005;
-            if(th > 0.1 && svoStage == 3) th -= 0.0005;
+            if(svoStage == 3)
+            {
+                if(zref != 0.0 && zpos != 0.0)
+                {
+                    if(zref < zpos && th > 0.1) th -= 0.0005;
+                    if(zref > zpos && th < 0.5) th += 0.0005;
+                }
+                else
+                    if(th > 0.1) th -= 0.0005;
+            }
             if(count < 0)
             {
                 ROS_INFO("Disarming!");
