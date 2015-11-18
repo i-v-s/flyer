@@ -7,7 +7,7 @@ project(flyer)
 #  Release        : w/o debug symbols, w/ optimization
 #  RelWithDebInfo : w/ debug symbols, w/ optimization
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Release)
 
 find_package(catkin REQUIRED COMPONENTS 
 	roscpp
@@ -36,7 +36,7 @@ include_directories(
 	${Eigen_INCLUDE_DIRS}
 )
 
-add_executable(flyer main.cpp)
+add_executable(flyer main.cpp svo.cpp msf.cpp mavros.cpp)
 add_dependencies(flyer mavros_msgs)
 add_dependencies(flyer mavros_msgs_generate_messages_cpp)
 add_dependencies(flyer geometry_msgs_generate_messages_cpp)
