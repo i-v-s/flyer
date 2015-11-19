@@ -6,7 +6,7 @@
 #include <sensor_fusion_comm/InitScale.h>
 
 
-MSF::MSF(ros::NodeHandle &nh)
+MSF::MSF(ros::NodeHandle &nh): onPose(0)
 {
     client = nh.serviceClient<sensor_fusion_comm::InitScale>("/msf_pose_sensor/pose_sensor/initialize_msf_scale");
     ros::Subscriber subPose = nh.subscribe("/msf_core/pose", 10, &MSF::poseCB, this);
