@@ -16,7 +16,6 @@ MAVROS * mavros = 0;
 
 bool landing = false;
 double zref = 0.5, zpos = 0;
-double th = 0.1;
 bool msfReady = false;
 
 void onSigInt(int sig)
@@ -34,15 +33,11 @@ int main(int argc, char **argv)
     svo = new SVO(nh, msf);
     mavros = new MAVROS(nh);
 
-    mavros->setThrottle(th);
-    
-    bool offboard_commands_enabled = false;
-    bool nav_guided_enabled = false;
-    bool arm_en = false;
     ros::Rate loop_rate(100.0);
 
-    int count = 5000;
+    double th = 0.2;
     // Pre run...
+    ROS_INFO("Setting OFFBOARD mode");
     for(int t = 100; t > 0 && ros::ok(); t--)
     {
         mavros->setThrottle(th);
@@ -54,20 +49,26 @@ int main(int argc, char **argv)
         mavros->setAttitude(att);
         ros::spinOnce();
         loop_rate.sleep();
+        if(!mavros->setMode("OFFBOARD"))
+        {
+            ROS_INFO("setMode error!");
+            return 1;
+        }
+        if(!strcmp(mavros->state.mode.data(), "OFFBOARD"))
+            break;
     }
-
-    // Set offboard mode
-    if(mavros->setMode("OFFBOARD"))
+    if(!strcmp(mavros->state.mode.data(), "OFFBOARD"))
     {
-        ROS_INFO("Set mode: OFFBOARD enabled!");       
+        ROS_INFO("State is OFFBOARD");
     }
     else
     {
-        ROS_INFO("Offboard mode still not enabled!");
+        ROS_INFO("State is '%s', not OFFBOARD", mavros->state.mode.data());
         return 1;
     }
 
     // Set arming
+
     if(mavros->setArming(true))
     {
         ROS_INFO("Set mode: Arming enabled!");
@@ -77,6 +78,28 @@ int main(int argc, char **argv)
         ROS_INFO("Set mode: Arming not enabled!");
         return 2;
     }
+
+    for(int t = 0; t < 500 && ros::ok() && !landing; t ++)
+    {
+        mavros->setThrottle(th);
+        geometry_msgs::Quaternion att;
+        att.w = 1.0;
+        att.x = 0.0;
+        att.y = 0.0;
+        att.z = 0.0;
+        mavros->setAttitude(att);
+
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+
+   /* for(int t = 0; t < 100 && ros::ok() && !landing; t ++)
+    {
+        mavros->setThrottle(th);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }*/
+
 
     /*while(ros::ok() && !landing)
     {
@@ -124,7 +147,7 @@ int main(int argc, char **argv)
     ROS_INFO("Landing!!!");
     while(th > 0.2)
     {
-        th -= 0.0005;
+        th -= 0.001;
         mavros->setThrottle(th);
         ros::spinOnce();
         loop_rate.sleep();
